@@ -1,0 +1,76 @@
+#!/usr/bin/env bash
+
+run_command() {
+    local cmd=$1
+    echo "#####################################################"
+    echo " Running $cmd"
+    echo "#####################################################"
+    if ! eval "$cmd"; then
+        echo "#####################################################"
+        echo " Error executing command: $cmd"
+        echo "#####################################################"
+        exit 1
+    else
+        echo "#####################################################"
+    fi
+}
+
+# change directory
+quaydir=`find . -name "quay-io*"`
+cd $quaydir || { echo "Error: Unable to change directory."; exit 1; }
+
+# omc prep
+omc use .
+
+# Start with basic OCP insights rules check
+insights_command="insights run -p ccx_rules_ocp ."
+run_command "$insights_command"
+
+# Extract cluster ID
+clusterid=`cat cluster-scoped-resources/config.openshift.io/clusterversions/version.yaml | yq -r .spec.clusterID`
+
+# Check latest insights for that cluster
+ocp_insights_command="ocp_insights.sh --all --id $clusterid"
+run_command "$ocp_insights_command"
+
+etcd_commands=(
+    "--errors"
+    "--ttl"
+    "--heartbeat"
+    "--election"
+    "--fdatasync"
+    "--buffer"
+)
+
+for cmd in "${etcd_commands[@]}"; do
+    etcd_command="etcd-ocp-diag.sh $cmd"
+    run_command "$etcd_command"
+done
+
+# additional custom checks 
+
+echo " "
+echo "######################################################"
+echo " Checking SCC's (onlyanyuid should have a priority (10)"
+echo "######################################################"
+echo " "
+omc get securitycontextconstraints -A
+echo " "
+echo "Run the following command and change the splunk-otel-collector SCC as needed..."
+echo 'omc get pods -A -o json | jq -r '\''["Namespace", "Pod"], (.items[] | select(.metadata.annotations."openshift.io/scc" | .!= null and contains("splunk-otel-collector")) | [.metadata.namespace, .metadata.name]) | @tsv'\'' | column -t | grep openshift'
+
+
+echo " "
+echo "#####################################################"
+echo " Running vlours' mg_cluster_status                   "
+echo "#####################################################"
+echo " "
+/home/remote/dcoronel/mg_cluster_status/mg_cluster_status.sh
+
+echo " "
+echo "#####################################################"
+echo " (NEW) (TESTING PHASE) Running omc prom rule -s firing"
+echo "#####################################################"
+echo " "
+omc prom rule -s firing
+
