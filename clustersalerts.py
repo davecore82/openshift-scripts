@@ -1,5 +1,8 @@
+#!/usr/bin/env python3
+
 import csv
 import subprocess
+import argparse
 
 def run_ocp_insights(cluster_id):
     result = subprocess.run(["ocp_insights.sh", "--id", cluster_id], capture_output=True, text=True)
@@ -38,6 +41,10 @@ def main(file_path):
             print(f"  {alert}")
 
 if __name__ == "__main__":
-    file_path = 'clusters.csv'  # replace with your CSV file path
-    main(file_path)
+    parser = argparse.ArgumentParser(description="Process cluster alerts and print them.")
+    parser.add_argument('file_path', help="Path to the input CSV file.")
+
+    args = parser.parse_args()
+
+    main(args.file_path)
 
