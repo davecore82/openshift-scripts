@@ -5,15 +5,12 @@
 #### Input CSV Format:
 The input CSV file should have the following format:
 
+```
 <cluster_id>,<cluster_name>
 <cluster_id_1>,<cluster_name_1>
 <cluster_id_2>,<cluster_name_2>
 ...
-
-**Example Input CSV:**
-cluster1,Cluster One
-cluster2,Cluster Two
-cluster3,Cluster Three
+```
 
 ### 1. `clustersoperators.py`
 
