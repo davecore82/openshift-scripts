@@ -1,5 +1,8 @@
+#!/usr/bin/env python3
+
 import csv
 import subprocess
+import argparse
 from tabulate import tabulate
 from collections import defaultdict
 
@@ -34,8 +37,7 @@ def read_csv(file_path):
             clusters.append((row[0], row[1]))  # (cluster_id, cluster_name)
     return clusters
 
-def main(file_path):
-    clusters = read_csv(file_path)
+def generate_output(clusters, output_type, output_file=None):
     all_operators = defaultdict(set)
 
     # First pass: Collect all unique operators across all clusters and their versions
@@ -45,18 +47,8 @@ def main(file_path):
         for operator_name, versions in operators.items():
             all_operators[operator_name].update(versions)
 
-    # Debug: Print the collected operators and their versions (without versions in operator names)
-    print("Collected Operators and Versions:")
-    for operator_name, versions in all_operators.items():
-        print(f"{operator_name}: {', '.join(sorted(versions))}")
-
     # Sort operators to make the table columns predictable
     sorted_operators = sorted(all_operators.keys())
-
-    # Debug: Print the sorted operator names (column headers)
-    print("\nSorted Operator Names (Columns):")
-    for operator in sorted_operators:
-        print(operator)
 
     # Second pass: Collect operator data for each cluster
     table_data = []
@@ -69,18 +61,31 @@ def main(file_path):
             row.append(", ".join(sorted(set(operators.get(operator, [])))))
         table_data.append(row)
 
-    # Debug output: Print the CSV data being built
-    print("\nCSV Data (in memory):")
     headers = ["Cluster Name", "Cluster ID"] + sorted_operators
-    print(f"Headers: {headers}")
-    for row in table_data:
-        print(row)
 
-    # Formatted table output
-    print("\nFormatted Table:")
-    print(tabulate(table_data, headers=headers, tablefmt="grid"))
+    if output_type == "table":
+        # Formatted table output
+        print(tabulate(table_data, headers=headers, tablefmt="grid"))
+    elif output_type == "csv":
+        if output_file:
+            with open(output_file, mode='w', newline='') as file:
+                csv_writer = csv.writer(file)
+                csv_writer.writerow(headers)
+                csv_writer.writerows(table_data)
+        else:
+            raise ValueError("Output file must be specified for CSV output.")
+
+def main():
+    parser = argparse.ArgumentParser(description="Process cluster data and output as table or CSV.")
+    parser.add_argument('file_path', help="Path to the input CSV file.")
+    parser.add_argument('--output', choices=['table', 'csv'], required=True, help="Output format: 'table' or 'csv'.")
+    parser.add_argument('--output-file', help="Path to the output CSV file (required if output is 'csv').")
+
+    args = parser.parse_args()
+
+    clusters = read_csv(args.file_path)
+    generate_output(clusters, args.output, args.output_file)
 
 if __name__ == "__main__":
-    file_path = 'clusters.csv'  # replace with your CSV file path
-    main(file_path)
+    main()
 
