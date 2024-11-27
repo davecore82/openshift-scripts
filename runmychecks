@@ -1,38 +1,53 @@
 #!/usr/bin/env bash
 
+# Function to log messages
+log() {
+    echo ""
+    echo "#####################################################"
+    echo "$1"
+    echo "#####################################################"
+}
+
+# Function to run commands and handle errors
 run_command() {
     local cmd=$1
-    echo "#####################################################"
-    echo " Running $cmd"
-    echo "#####################################################"
+    log "Running $cmd"
     if ! eval "$cmd"; then
-        echo "#####################################################"
-        echo " Error executing command: $cmd"
-        echo "#####################################################"
+        log "Error executing command: $cmd"
         exit 1
-    else
-        echo "#####################################################"
     fi
 }
 
-# change directory
-quaydir=`find . -name "quay-io*"`
-cd $quaydir || { echo "Error: Unable to change directory."; exit 1; }
+# Check if a command exists in the PATH
+command_exists() {
+    command -v "$1" &> /dev/null
+}
+
+# Ensure omc is available
+if ! command_exists omc; then
+    echo "Error: omc command not found in PATH"
+    exit 1
+fi
+
+# Change directory to quay-io
+quaydir=$(find . -name "quay-io*")
+cd "$quaydir" || { echo "Error: Unable to change directory."; exit 1; }
 
 # omc prep
 omc use .
 
-# Start with basic OCP insights rules check
+# Run basic OCP insights rules check
 insights_command="insights run -p ccx_rules_ocp ."
 run_command "$insights_command"
 
 # Extract cluster ID
-clusterid=`cat cluster-scoped-resources/config.openshift.io/clusterversions/version.yaml | yq -r .spec.clusterID`
+clusterid=$(yq -r .spec.clusterID < cluster-scoped-resources/config.openshift.io/clusterversions/version.yaml)
 
 # Check latest insights for that cluster
 ocp_insights_command="ocp_insights.sh --all --id $clusterid"
 run_command "$ocp_insights_command"
 
+# Run etcd diagnostics commands
 etcd_commands=(
     "--errors"
     "--ttl"
@@ -47,30 +62,18 @@ for cmd in "${etcd_commands[@]}"; do
     run_command "$etcd_command"
 done
 
-# additional custom checks 
-
-echo " "
-echo "######################################################"
-echo " Checking SCC's (onlyanyuid should have a priority (10)"
-echo "######################################################"
-echo " "
+# Additional custom checks
+log "Checking SCC's (onlyanyuid should have a priority of 10)"
 omc get securitycontextconstraints -A
-echo " "
+
 echo "Run the following command and change the splunk-otel-collector SCC as needed..."
 echo 'omc get pods -A -o json | jq -r '\''["Namespace", "Pod"], (.items[] | select(.metadata.annotations."openshift.io/scc" | .!= null and contains("splunk-otel-collector")) | [.metadata.namespace, .metadata.name]) | @tsv'\'' | column -t | grep openshift'
 
-
-echo " "
-echo "#####################################################"
-echo " Running vlours' mg_cluster_status                   "
-echo "#####################################################"
-echo " "
-/home/remote/dcoronel/mg_cluster_status/mg_cluster_status.sh
-
-echo " "
-echo "#####################################################"
-echo " (NEW) (TESTING PHASE) Running omc prom rule -s firing"
-echo "#####################################################"
-echo " "
-omc prom rule -s firing
+# Run mg_cluster_status if available in PATH
+log "Running vlours' mg_cluster_status"
+if command_exists mg_cluster_status.sh; then
+    mg_cluster_status.sh
+else
+    log "mg_cluster_status.sh not found in PATH"
+fi
 
