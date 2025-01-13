@@ -29,6 +29,13 @@ def extract_operators(output):
                 operators[operator_name].append(operator_version)
     return operators
 
+def extract_cluster_version(output):
+    lines = output.split('\n')
+    for line in lines:
+        if line.startswith("Cluster Version:"):
+            return line.split(":")[1].strip()  # Extract and return the version
+    return "Unknown"  # Default if version is not found
+
 def read_csv(file_path):
     clusters = []
     with open(file_path, mode='r') as file:
@@ -50,18 +57,19 @@ def generate_output(clusters, output_type, output_file=None):
     # Sort operators to make the table columns predictable
     sorted_operators = sorted(all_operators.keys())
 
-    # Second pass: Collect operator data for each cluster
+    # Second pass: Collect operator data and cluster version for each cluster
     table_data = []
     for cluster_id, cluster_name in clusters:
         output = run_ocp_insights(cluster_id)
         operators = extract_operators(output)
-        row = [cluster_name, cluster_id]
+        cluster_version = extract_cluster_version(output)
+        row = [cluster_name, cluster_id, cluster_version]
         for operator in sorted_operators:
             # Join the versions with a delimiter (e.g., comma) for each operator
             row.append(", ".join(sorted(set(operators.get(operator, [])))))
         table_data.append(row)
 
-    headers = ["Cluster Name", "Cluster ID"] + sorted_operators
+    headers = ["Cluster Name", "Cluster ID", "OpenShift Version"] + sorted_operators
 
     if output_type == "table":
         # Formatted table output
